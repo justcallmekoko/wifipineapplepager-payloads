@@ -17,6 +17,12 @@ class ProtocolTests(unittest.TestCase):
     def test_record_ack_round_trip(self):
         msg=node.text_message(node.RECORD_ACK,19,b"W6,5975")
         self.assertEqual(node.parse_text_message(msg),(node.RECORD_ACK,19,b"W6,5975"))
+    def test_ack_client_requires_matching_detail_and_bounds_drain(self):
+        source=PATH.read_text()
+        self.assertIn("parsed[2]==expected_ack",source)
+        self.assertIn("drain_deadline=time.monotonic()+.5",source)
+        self.assertIn("count<3",source)
+        self.assertIn("os.urandom(4)",source)
     def test_6ghz_beacon_record(self):
         present=(1<<1)|(1<<3)|(1<<5)
         rt=struct.pack("<BBHIBxHHb",0,0,15,present,0,5975,0,-42)

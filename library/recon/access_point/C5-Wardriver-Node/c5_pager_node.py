@@ -100,7 +100,7 @@ def tune(iface,mhz):
 
 def main():
     ap=argparse.ArgumentParser(); ap.add_argument("--iface",default="wlan1mon"); ap.add_argument("--core"); ap.add_argument("--stats",default="/tmp/c5-pager-node.json"); a=ap.parse_args()
-    radio=Radio(a.iface); wanted=bytes.fromhex(a.core.replace(":","")) if a.core else None; core=None; heartbeat=0; record_counter=0; seen={}; queue=[]; sent=0; acked=0; last_ack=None; sweeps=0
+    radio=Radio(a.iface); wanted=bytes.fromhex(a.core.replace(":","")) if a.core else None; core=None; heartbeat=0; record_counter=struct.unpack("<I",os.urandom(4))[0]; seen={}; queue=[]; attempts={}; sent=0; acked=0; dropped=0; last_ack=None; sweeps=0
     while True:
         tune(a.iface,HOME_FREQ)
         if core is None:
@@ -111,16 +111,25 @@ def main():
                     if parsed and parsed[0]==CORE_REPLY and (wanted is None or src==wanted): core=src
         else:
             radio.send(core,text_message(HEARTBEAT,heartbeat)); heartbeat+=1
-            while queue:
-                bssid,ch,rssi,auth,ssid=queue.pop(0)
+            drain_deadline=time.monotonic()+.5
+            while queue and time.monotonic()<drain_deadline:
+                rec=queue.pop(0); bssid,ch,rssi,auth,ssid=rec
                 line=bssid.hex(":").upper().encode()+b","+ssid+b","+auth.encode()+f",{ch},{rssi},W6".encode()
-                record_counter+=1
+                expected_ack=f"W6,{5950+5*ch}".encode()
+                record_counter=(record_counter+1)&0xffffffff
                 radio.send(core,text_message(TEXT,record_counter,line)); sent+=1
-                for kind,item in radio.receive(.2):
+                acknowledged=False
+                for kind,item in radio.receive(.15):
                     if kind != "message": continue
                     src,payload=item; parsed=parse_text_message(payload)
-                    if src==core and parsed and parsed[0]==RECORD_ACK and parsed[1]==record_counter:
-                        acked+=1; last_ack=parsed[2].decode("ascii","replace"); break
+                    if src==core and parsed and parsed[0]==RECORD_ACK and parsed[1]==record_counter and parsed[2]==expected_ack:
+                        acked+=1; last_ack=parsed[2].decode("ascii"); acknowledged=True; break
+                if acknowledged:
+                    attempts.pop(bssid,None)
+                else:
+                    count=attempts.get(bssid,0)+1
+                    if count<3: attempts[bssid]=count; queue.append(rec)
+                    else: attempts.pop(bssid,None); dropped+=1
             radio.receive(.15)
         for ch in PSC:
             if not tune(a.iface,5950+5*ch): continue
@@ -135,7 +144,7 @@ def main():
                 queue.append(rec)
         sweeps+=1
         tmp=a.stats+".tmp"
-        with open(tmp,"w") as f: json.dump({"core":core.hex(":") if core else None,"seen":len(seen),"queued":len(queue),"sent":sent,"acked":acked,"last_ack":last_ack,"sweeps":sweeps},f)
+        with open(tmp,"w") as f: json.dump({"core":core.hex(":") if core else None,"seen":len(seen),"queued":len(queue),"sent":sent,"acked":acked,"dropped":dropped,"last_ack":last_ack,"sweeps":sweeps},f)
         os.replace(tmp,a.stats)
 
 if __name__=="__main__": main()
