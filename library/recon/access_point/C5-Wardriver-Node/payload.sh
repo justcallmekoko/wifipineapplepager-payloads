@@ -6,6 +6,7 @@
 # Category: Reconnaissance
 
 DIR="$(cd "$(dirname "$0")" && pwd)"; IFACE=wlan1mon; STATS=/tmp/c5-pager-node.json; LOGFILE=/tmp/c5-pager-node.log
+CORE_CONFIG=/root/.config/c5-wardriver/core_mac
 RADIO_SET=0; OLD_HOP=""; OLD_CHANNEL=""
 cleanup() {
   [ -n "${PID:-}" ] && kill "$PID" 2>/dev/null
@@ -26,12 +27,15 @@ python3 -c 'import argparse,json,select,socket,struct,subprocess' >/dev/null 2>&
   ERROR_DIALOG "Python 3 standard-library modules are unavailable. Install python3-light."; exit 1;
 }
 iw dev "$IFACE" info >/dev/null 2>&1 || { ERROR_DIALOG "wlan1mon is unavailable."; exit 1; }
+[ -s "$CORE_CONFIG" ] || { ERROR_DIALOG "Configure the C5 Core MAC in $CORE_CONFIG first."; exit 1; }
+CORE_MAC=$(tr -d '[:space:]' <"$CORE_CONFIG")
+echo "$CORE_MAC" | grep -Eq '^([[:xdigit:]]{2}:){5}[[:xdigit:]]{2}$' || { ERROR_DIALOG "The configured C5 Core MAC is invalid."; exit 1; }
 PROMPT_IMAGE "$DIR/splash.png"
 CONFIRMATION_DIALOG "Start C5 Wardriver 6 GHz node?" || exit 0
 OLD_HOP=$(uci -q get pineapd.wlan1mon.hop); OLD_CHANNEL=$(uci -q get pineapd.wlan1mon.channel)
 uci set pineapd.wlan1mon.hop=0; uci set pineapd.wlan1mon.channel=6; RADIO_SET=1
 /etc/init.d/pineapd restart >/dev/null 2>&1; sleep 3
-python3 "$DIR/c5_pager_node.py" --iface "$IFACE" --stats "$STATS" >"$LOGFILE" 2>&1 & PID=$!
+python3 "$DIR/c5_pager_node.py" --iface "$IFACE" --core "$CORE_MAC" --stats "$STATS" >"$LOGFILE" 2>&1 & PID=$!
 LOG cyan "C5 Wardriver Pager Node"
 LOG white "6 GHz PSC scan active"
 LOG white "Press A to stop"

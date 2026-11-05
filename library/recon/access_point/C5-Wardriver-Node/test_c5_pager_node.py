@@ -23,6 +23,8 @@ class ProtocolTests(unittest.TestCase):
         self.assertIn("drain_deadline=time.monotonic()+.5",source)
         self.assertIn("count<3",source)
         self.assertIn("os.urandom(4)",source)
+        self.assertIn('add_argument("--core",required=True)',source)
+        self.assertIn("src==wanted",source)
     def test_6ghz_beacon_record(self):
         present=(1<<1)|(1<<3)|(1<<5)
         rt=struct.pack("<BBHIBxHHb",0,0,15,present,0,5975,0,-42)

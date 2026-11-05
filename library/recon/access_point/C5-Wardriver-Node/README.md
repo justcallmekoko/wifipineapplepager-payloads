@@ -13,6 +13,7 @@ Development preview for WiFi Pineapple Pager 2.0.0. It scans 6 GHz preferred sca
 
 - C5 Wardriver firmware containing Pager protocol support
 - C5 configured as Core with ESP-NOW encryption disabled
+- The Core base MAC stored in `/root/.config/c5-wardriver/core_mac` as six colon-separated octets; replies and record ACKs from any other radio are rejected
 - Pager $wlan1mon$ available in monitor mode
 - python3-light installed on the Pager (MMC installations are detected automatically)
 

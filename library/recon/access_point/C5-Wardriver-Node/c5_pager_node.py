@@ -99,8 +99,8 @@ def tune(iface,mhz):
     return subprocess.run(["iw","dev",iface,"set","freq",str(mhz)],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode==0
 
 def main():
-    ap=argparse.ArgumentParser(); ap.add_argument("--iface",default="wlan1mon"); ap.add_argument("--core"); ap.add_argument("--stats",default="/tmp/c5-pager-node.json"); a=ap.parse_args()
-    radio=Radio(a.iface); wanted=bytes.fromhex(a.core.replace(":","")) if a.core else None; core=None; heartbeat=0; record_counter=struct.unpack("<I",os.urandom(4))[0]; seen={}; queue=[]; attempts={}; sent=0; acked=0; dropped=0; last_ack=None; sweeps=0
+    ap=argparse.ArgumentParser(); ap.add_argument("--iface",default="wlan1mon"); ap.add_argument("--core",required=True); ap.add_argument("--stats",default="/tmp/c5-pager-node.json"); a=ap.parse_args()
+    radio=Radio(a.iface); wanted=bytes.fromhex(a.core.replace(":","")); core=None; heartbeat=0; record_counter=struct.unpack("<I",os.urandom(4))[0]; seen={}; queue=[]; attempts={}; sent=0; acked=0; dropped=0; last_ack=None; sweeps=0
     while True:
         tune(a.iface,HOME_FREQ)
         if core is None:
@@ -108,7 +108,7 @@ def main():
             for kind,item in radio.receive(.35):
                 if kind=="message":
                     src,payload=item; parsed=parse_text_message(payload)
-                    if parsed and parsed[0]==CORE_REPLY and (wanted is None or src==wanted): core=src
+                    if parsed and parsed[0]==CORE_REPLY and src==wanted: core=src
         else:
             radio.send(core,text_message(HEARTBEAT,heartbeat)); heartbeat+=1
             drain_deadline=time.monotonic()+.5
