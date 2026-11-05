@@ -38,7 +38,7 @@ LOG white "Press A to stop"
 WAIT_FOR_BUTTON_PRESS A >/dev/null 2>&1
 kill "$PID" 2>/dev/null; wait "$PID" 2>/dev/null; PID=""
 if [ -s "$STATS" ]; then
-  summary=$(python3 -c 'import json,sys; s=json.load(open(sys.argv[1])); print("Core: %s\n6 GHz seen: %d\nRecords sent: %d"%(s.get("core") or "not found",s["seen"],s["sent"]))' "$STATS")
+  summary=$(python3 -c 'import json,sys; s=json.load(open(sys.argv[1])); print("Core: %s\n6 GHz seen: %d\nRecords sent: %d\nCore ACKs: %d"%(s.get("core") or "not found",s["seen"],s["sent"],s.get("acked",0)))' "$STATS")
   PROMPT "$summary"
 else
   ERROR_DIALOG "Node stopped before producing status. See $LOGFILE"

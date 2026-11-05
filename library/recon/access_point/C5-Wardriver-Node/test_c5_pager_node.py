@@ -14,6 +14,9 @@ class ProtocolTests(unittest.TestCase):
         msg=node.text_message(node.TEXT,7,b"hello")
         self.assertEqual(len(msg),212)
         self.assertEqual(node.parse_text_message(msg),(node.TEXT,7,b"hello"))
+    def test_record_ack_round_trip(self):
+        msg=node.text_message(node.RECORD_ACK,19,b"W6,5975")
+        self.assertEqual(node.parse_text_message(msg),(node.RECORD_ACK,19,b"W6,5975"))
     def test_6ghz_beacon_record(self):
         present=(1<<1)|(1<<3)|(1<<5)
         rt=struct.pack("<BBHIBxHHb",0,0,15,present,0,5975,0,-42)

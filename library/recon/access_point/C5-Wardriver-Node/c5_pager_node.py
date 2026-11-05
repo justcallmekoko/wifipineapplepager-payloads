@@ -3,7 +3,7 @@
 import argparse, json, os, select, socket, struct, subprocess, time
 
 MAGIC=b"ENOW"; OUI=bytes.fromhex("18fe34"); BROADCAST=b"\xff"*6
-CORE_REQUEST=1; CORE_REPLY=2; HEARTBEAT=3; TEXT=4
+CORE_REQUEST=1; CORE_REPLY=2; HEARTBEAT=3; TEXT=4; RECORD_ACK=6
 HOME_FREQ=2437; PSC=[5,21,37,53,69,85,101,117,133,149,165,181,197,213,229]
 
 def text_message(kind,counter=0,text=b""):
@@ -100,7 +100,7 @@ def tune(iface,mhz):
 
 def main():
     ap=argparse.ArgumentParser(); ap.add_argument("--iface",default="wlan1mon"); ap.add_argument("--core"); ap.add_argument("--stats",default="/tmp/c5-pager-node.json"); a=ap.parse_args()
-    radio=Radio(a.iface); wanted=bytes.fromhex(a.core.replace(":","")) if a.core else None; core=None; heartbeat=0; seen={}; queue=[]; sent=0; sweeps=0
+    radio=Radio(a.iface); wanted=bytes.fromhex(a.core.replace(":","")) if a.core else None; core=None; heartbeat=0; record_counter=0; seen={}; queue=[]; sent=0; acked=0; last_ack=None; sweeps=0
     while True:
         tune(a.iface,HOME_FREQ)
         if core is None:
@@ -114,7 +114,13 @@ def main():
             while queue:
                 bssid,ch,rssi,auth,ssid=queue.pop(0)
                 line=bssid.hex(":").upper().encode()+b","+ssid+b","+auth.encode()+f",{ch},{rssi},W6".encode()
-                radio.send(core,text_message(TEXT,0,line)); sent+=1; time.sleep(.01)
+                record_counter+=1
+                radio.send(core,text_message(TEXT,record_counter,line)); sent+=1
+                for kind,item in radio.receive(.2):
+                    if kind != "message": continue
+                    src,payload=item; parsed=parse_text_message(payload)
+                    if src==core and parsed and parsed[0]==RECORD_ACK and parsed[1]==record_counter:
+                        acked+=1; last_ack=parsed[2].decode("ascii","replace"); break
             radio.receive(.15)
         for ch in PSC:
             if not tune(a.iface,5950+5*ch): continue
@@ -129,7 +135,7 @@ def main():
                 queue.append(rec)
         sweeps+=1
         tmp=a.stats+".tmp"
-        with open(tmp,"w") as f: json.dump({"core":core.hex(":") if core else None,"seen":len(seen),"queued":len(queue),"sent":sent,"sweeps":sweeps},f)
+        with open(tmp,"w") as f: json.dump({"core":core.hex(":") if core else None,"seen":len(seen),"queued":len(queue),"sent":sent,"acked":acked,"last_ack":last_ack,"sweeps":sweeps},f)
         os.replace(tmp,a.stats)
 
 if __name__=="__main__": main()
