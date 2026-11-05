@@ -14,6 +14,6 @@ Development preview for WiFi Pineapple Pager 2.0.0. It scans 6 GHz preferred sca
 - C5 Wardriver firmware containing Pager protocol support
 - C5 configured as Core with ESP-NOW encryption disabled
 - Pager $wlan1mon$ available in monitor mode
-- Python 3 installed on the Pager
+- python3-light installed on the Pager (MMC installations are detected automatically)
 
 This is an early hardware-validation build, not yet ready for upstream submission.

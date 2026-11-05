@@ -3,6 +3,12 @@ import importlib.util, pathlib, struct, unittest
 PATH=pathlib.Path(__file__).with_name("c5_pager_node.py")
 spec=importlib.util.spec_from_file_location("node",PATH); node=importlib.util.module_from_spec(spec); spec.loader.exec_module(node)
 
+class PayloadTests(unittest.TestCase):
+    def test_payload_exposes_mmc_python_packages(self):
+        payload=PATH.with_name("payload.sh").read_text()
+        self.assertIn("PYTHON_MMCLIB",payload)
+        self.assertLess(payload.index("export PYTHONPATH"), payload.index("c5_pager_node.py"))
+
 class ProtocolTests(unittest.TestCase):
     def test_text_message_matches_c5_struct(self):
         msg=node.text_message(node.TEXT,7,b"hello")
