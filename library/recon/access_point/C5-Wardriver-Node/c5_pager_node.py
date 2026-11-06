@@ -5,6 +5,7 @@ import argparse, json, os, select, socket, struct, subprocess, time
 MAGIC=b"ENOW"; OUI=bytes.fromhex("18fe34"); BROADCAST=b"\xff"*6
 IW_BIN=os.environ.get("IW_BIN","/usr/sbin/iw")
 CORE_REQUEST=1; CORE_REPLY=2; HEARTBEAT=3; TEXT=4; RECORD_ACK=6
+CAPABILITIES=b"C5P1;ROLE=EXTERNAL;BANDS=6"
 HOME_FREQ=2437; PSC=[5,21,37,53,69,85,101,117,133,149,165,181,197,213,229]
 
 def text_message(kind,counter=0,text=b""):
@@ -115,7 +116,7 @@ def discover_cores(radio,iface,seconds):
     found=set(); deadline=time.monotonic()+seconds
     while time.monotonic()<deadline:
         tune(iface,HOME_FREQ)
-        radio.send(BROADCAST,text_message(CORE_REQUEST))
+        radio.send(BROADCAST,text_message(CORE_REQUEST,text=CAPABILITIES))
         for kind,item in radio.receive(.45):
             if kind!="message": continue
             src,payload=item; parsed=parse_text_message(payload)
@@ -152,13 +153,13 @@ def main():
     while True:
         tune(a.iface,HOME_FREQ)
         if core is None:
-            radio.send(BROADCAST,text_message(CORE_REQUEST))
+            radio.send(BROADCAST,text_message(CORE_REQUEST,text=CAPABILITIES))
             for kind,item in radio.receive(.35):
                 if kind=="message":
                     src,payload=item; parsed=parse_text_message(payload)
                     if parsed and parsed[0]==CORE_REPLY and src==wanted: core=src
         else:
-            radio.send(core,text_message(HEARTBEAT,heartbeat)); heartbeat+=1
+            radio.send(core,text_message(HEARTBEAT,heartbeat,CAPABILITIES)); heartbeat+=1
             drain_deadline=time.monotonic()+.5
             while queue and time.monotonic()<drain_deadline:
                 rec=queue.pop(0); bssid,ch,rssi,auth,ssid=rec

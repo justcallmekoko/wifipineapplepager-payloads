@@ -2,7 +2,7 @@
 # Title: C5 Wardriver Pager Node
 # Author: JustCallMeKoko
 # Description: Adds Wi-Fi 6 GHz observations to a C5 Wardriver Core over ESP-NOW
-# Version: 0.2.0
+# Version: 0.3.0
 # Category: Reconnaissance
 
 LAUNCH_DIR="$(cd "$(dirname "$0")" && pwd)"

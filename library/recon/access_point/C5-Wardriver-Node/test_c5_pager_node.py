@@ -33,6 +33,10 @@ class ProtocolTests(unittest.TestCase):
     def test_record_ack_round_trip(self):
         msg=node.text_message(node.RECORD_ACK,19,b"W6,5975")
         self.assertEqual(node.parse_text_message(msg),(node.RECORD_ACK,19,b"W6,5975"))
+    def test_external_6ghz_capability_round_trip(self):
+        for kind in (node.CORE_REQUEST,node.HEARTBEAT):
+            msg=node.text_message(kind,7,node.CAPABILITIES)
+            self.assertEqual(node.parse_text_message(msg),(kind,7,node.CAPABILITIES))
     def test_ack_client_requires_matching_detail_and_bounds_drain(self):
         source=PATH.read_text()
         self.assertIn("parsed[2]==expected_ack",source)
@@ -43,6 +47,8 @@ class ProtocolTests(unittest.TestCase):
         self.assertIn("src==wanted",source)
         self.assertIn('IW_BIN=os.environ.get("IW_BIN","/usr/sbin/iw")',source)
         self.assertIn("subprocess.run([IW_BIN",source)
+        self.assertIn("text_message(CORE_REQUEST,text=CAPABILITIES)",source)
+        self.assertIn("text_message(HEARTBEAT,heartbeat,CAPABILITIES)",source)
     def test_payload_uses_portable_core_mac_parser(self):
         payload=PATH.with_name("payload.sh").read_text()
         self.assertIn("open(sys.argv[1]).read().strip()",payload)
@@ -64,7 +70,7 @@ class ProtocolTests(unittest.TestCase):
         with mock.patch.object(node.time,"monotonic",side_effect=[0,0,2]), mock.patch.object(node,"tune",return_value=True):
             self.assertEqual(node.discover_cores(radio,"wlan1mon",1),[core])
         self.assertEqual(radio.sent[0][0],node.BROADCAST)
-        self.assertEqual(node.parse_text_message(radio.sent[0][1])[0],node.CORE_REQUEST)
+        self.assertEqual(node.parse_text_message(radio.sent[0][1]),(node.CORE_REQUEST,0,node.CAPABILITIES))
     def test_live_status_metrics(self):
         status=node.format_status({"core":"3c:dc:75:86:de:94","seen":12,"queued":3,"sent":10,"acked":9,"dropped":1,"latest":{"ssid":"Pager Test","channel":5,"rssi":-42}})
         for expected in ("CORE: LINKED","NET: Pager Test","CH: 5  RSSI: -42 dBm","SEEN: 12  QUEUE: 3","TX: 10  ACK: 9  DROP: 1","A: STOP"):
