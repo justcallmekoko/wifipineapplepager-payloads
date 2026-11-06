@@ -5,7 +5,18 @@
 # Version: 0.1.0
 # Category: Reconnaissance
 
-DIR="$(cd "$(dirname "$0")" && pwd)"; IFACE=wlan1mon; STATS=/tmp/c5-pager-node.json; LOGFILE=/tmp/c5-pager-node.log
+LAUNCH_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [ -f "$LAUNCH_DIR/c5_pager_node.py" ]; then
+  DIR="$LAUNCH_DIR"
+elif [ -f /root/payloads/user/reconnaissance/c5_wardriver_node/c5_pager_node.py ]; then
+  DIR=/root/payloads/user/reconnaissance/c5_wardriver_node
+elif [ -f /mmc/root/payloads/user/reconnaissance/c5_wardriver_node/c5_pager_node.py ]; then
+  DIR=/mmc/root/payloads/user/reconnaissance/c5_wardriver_node
+else
+  ERROR_DIALOG "C5 Wardriver node worker is missing."
+  exit 1
+fi
+IFACE=wlan1mon; STATS=/tmp/c5-pager-node.json; LOGFILE=/tmp/c5-pager-node.log
 CORE_CONFIG=/root/.config/c5-wardriver/core_mac
 RADIO_SET=0; OLD_HOP=""; OLD_CHANNEL=""
 cleanup() {

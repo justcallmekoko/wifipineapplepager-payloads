@@ -7,7 +7,7 @@ class PayloadTests(unittest.TestCase):
     def test_payload_exposes_mmc_python_packages(self):
         payload=PATH.with_name("payload.sh").read_text()
         self.assertIn("PYTHON_MMCLIB",payload)
-        self.assertLess(payload.index("export PYTHONPATH"), payload.index("c5_pager_node.py"))
+        self.assertLess(payload.index("export PYTHONPATH"), payload.index('python3 "$DIR/c5_pager_node.py"'))
 
 class ProtocolTests(unittest.TestCase):
     def test_text_message_matches_c5_struct(self):
@@ -30,6 +30,9 @@ class ProtocolTests(unittest.TestCase):
         self.assertIn("open(sys.argv[1]).read().strip()",payload)
         self.assertNotIn("tr -d '[:space:]'",payload)
         self.assertIn("[0-9A-Fa-f]",payload)
+        self.assertIn("LAUNCH_DIR=",payload)
+        self.assertIn("/root/payloads/user/reconnaissance/c5_wardriver_node/c5_pager_node.py",payload)
+        self.assertIn("/mmc/root/payloads/user/reconnaissance/c5_wardriver_node/c5_pager_node.py",payload)
     def test_6ghz_beacon_record(self):
         present=(1<<1)|(1<<3)|(1<<5)
         rt=struct.pack("<BBHIBxHHb",0,0,15,present,0,5975,0,-42)
