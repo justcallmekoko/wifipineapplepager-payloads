@@ -98,9 +98,29 @@ class Radio:
 def tune(iface,mhz):
     return subprocess.run(["iw","dev",iface,"set","freq",str(mhz)],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode==0
 
+def format_status(stats):
+    latest=stats.get("latest") or {}
+    ssid=str(latest.get("ssid") or "--").replace("\n","_").replace("\r","_")[:22]
+    channel=latest.get("channel","--"); rssi=latest.get("rssi","--")
+    state="LINKED" if stats.get("core") else "SEARCH"
+    return "\n".join((
+        f"CORE: {state}",
+        f"NET: {ssid}",
+        f"CH: {channel}  RSSI: {rssi} dBm",
+        f"SEEN: {stats.get('seen',0)}  QUEUE: {stats.get('queued',0)}",
+        f"TX: {stats.get('sent',0)}  ACK: {stats.get('acked',0)}  DROP: {stats.get('dropped',0)}",
+        "A: STOP",
+    ))
+
 def main():
-    ap=argparse.ArgumentParser(); ap.add_argument("--iface",default="wlan1mon"); ap.add_argument("--core",required=True); ap.add_argument("--stats",default="/tmp/c5-pager-node.json"); a=ap.parse_args()
-    radio=Radio(a.iface); wanted=bytes.fromhex(a.core.replace(":","")); core=None; heartbeat=0; record_counter=struct.unpack("<I",os.urandom(4))[0]; seen={}; queue=[]; attempts={}; sent=0; acked=0; dropped=0; last_ack=None; sweeps=0
+    ap=argparse.ArgumentParser(); ap.add_argument("--iface",default="wlan1mon"); ap.add_argument("--core"); ap.add_argument("--stats",default="/tmp/c5-pager-node.json"); ap.add_argument("--render-stats"); a=ap.parse_args()
+    if a.render_stats:
+        try:
+            with open(a.render_stats) as f: print(format_status(json.load(f)))
+        except (OSError,ValueError): print(format_status({}))
+        return
+    if not a.core: ap.error("--core is required")
+    radio=Radio(a.iface); wanted=bytes.fromhex(a.core.replace(":","")); core=None; heartbeat=0; record_counter=struct.unpack("<I",os.urandom(4))[0]; seen={}; queue=[]; attempts={}; sent=0; acked=0; dropped=0; last_ack=None; latest=None; sweeps=0
     while True:
         tune(a.iface,HOME_FREQ)
         if core is None:
@@ -138,13 +158,14 @@ def main():
                 rec=beacon_record(item)
                 if not rec: continue
                 now=time.monotonic(); bssid=rec[0]
+                latest={"ssid":rec[4].decode("utf-8","replace"),"channel":rec[1],"rssi":rec[2],"bssid":bssid.hex(":")}
                 if now-seen.get(bssid,-999)<30: continue
                 seen[bssid]=now
                 if len(queue)>=256: queue.pop(0)
                 queue.append(rec)
         sweeps+=1
         tmp=a.stats+".tmp"
-        with open(tmp,"w") as f: json.dump({"core":core.hex(":") if core else None,"seen":len(seen),"queued":len(queue),"sent":sent,"acked":acked,"dropped":dropped,"last_ack":last_ack,"sweeps":sweeps},f)
+        with open(tmp,"w") as f: json.dump({"core":core.hex(":") if core else None,"seen":len(seen),"queued":len(queue),"sent":sent,"acked":acked,"dropped":dropped,"last_ack":last_ack,"latest":latest,"sweeps":sweeps},f)
         os.replace(tmp,a.stats)
 
 if __name__=="__main__": main()

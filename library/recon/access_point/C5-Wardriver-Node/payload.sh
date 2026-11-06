@@ -46,11 +46,25 @@ CONFIRMATION_DIALOG "Start C5 Wardriver 6 GHz node?" || exit 0
 OLD_HOP=$(uci -q get pineapd.wlan1mon.hop); OLD_CHANNEL=$(uci -q get pineapd.wlan1mon.channel)
 uci set pineapd.wlan1mon.hop=0; uci set pineapd.wlan1mon.channel=6; RADIO_SET=1
 /etc/init.d/pineapd restart >/dev/null 2>&1; sleep 3
+rm -f "$STATS"
 python3 "$DIR/c5_pager_node.py" --iface "$IFACE" --core "$CORE_MAC" --stats "$STATS" >"$LOGFILE" 2>&1 & PID=$!
-LOG cyan "C5 Wardriver Pager Node"
-LOG white "6 GHz PSC scan active"
-LOG white "Press A to stop"
-WAIT_FOR_BUTTON_PRESS A >/dev/null 2>&1
+LOG cyan "C5 WARDRIVER 6 GHz NODE"
+while kill -0 "$PID" 2>/dev/null; do
+  status=$(python3 "$DIR/c5_pager_node.py" --render-stats "$STATS")
+  if echo "$status" | grep -q "CORE: LINKED"; then
+    LOG green "$status"
+  else
+    LOG yellow "$status"
+  fi
+
+  timeout 2 WAIT_FOR_BUTTON_PRESS A >/dev/null 2>&1
+  rc=$?
+  [ "$rc" -eq 0 ] && break
+  [ "$rc" -eq 124 ] || sleep 2
+done
+if ! kill -0 "$PID" 2>/dev/null; then
+  LOG red "Node worker stopped. See $LOGFILE"
+fi
 kill "$PID" 2>/dev/null; wait "$PID" 2>/dev/null; PID=""
 if [ -s "$STATS" ]; then
   summary=$(python3 -c 'import json,sys; s=json.load(open(sys.argv[1])); print("Core: %s\n6 GHz seen: %d\nRecords sent: %d\nCore ACKs: %d"%(s.get("core") or "not found",s["seen"],s["sent"],s.get("acked",0)))' "$STATS")

@@ -23,7 +23,7 @@ class ProtocolTests(unittest.TestCase):
         self.assertIn("drain_deadline=time.monotonic()+.5",source)
         self.assertIn("count<3",source)
         self.assertIn("os.urandom(4)",source)
-        self.assertIn('add_argument("--core",required=True)',source)
+        self.assertIn('if not a.core: ap.error("--core is required")',source)
         self.assertIn("src==wanted",source)
     def test_payload_uses_portable_core_mac_parser(self):
         payload=PATH.with_name("payload.sh").read_text()
@@ -33,6 +33,15 @@ class ProtocolTests(unittest.TestCase):
         self.assertIn("LAUNCH_DIR=",payload)
         self.assertIn("/root/payloads/user/reconnaissance/c5_wardriver_node/c5_pager_node.py",payload)
         self.assertIn("/mmc/root/payloads/user/reconnaissance/c5_wardriver_node/c5_pager_node.py",payload)
+    def test_live_status_metrics(self):
+        status=node.format_status({"core":"3c:dc:75:86:de:94","seen":12,"queued":3,"sent":10,"acked":9,"dropped":1,"latest":{"ssid":"Pager Test","channel":5,"rssi":-42}})
+        for expected in ("CORE: LINKED","NET: Pager Test","CH: 5  RSSI: -42 dBm","SEEN: 12  QUEUE: 3","TX: 10  ACK: 9  DROP: 1","A: STOP"):
+            self.assertIn(expected,status)
+    def test_status_sanitizes_and_bounds_ssid(self):
+        status=node.format_status({"latest":{"ssid":"A\nB"+"X"*30}})
+        self.assertNotIn("A\nB",status)
+        self.assertIn("CORE: SEARCH",status)
+        self.assertLessEqual(len(status.splitlines()[1].removeprefix("NET: ")),22)
     def test_6ghz_beacon_record(self):
         present=(1<<1)|(1<<3)|(1<<5)
         rt=struct.pack("<BBHIBxHHb",0,0,15,present,0,5975,0,-42)
