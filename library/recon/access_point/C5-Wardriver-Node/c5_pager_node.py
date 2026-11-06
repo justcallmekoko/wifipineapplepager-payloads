@@ -111,6 +111,17 @@ class Radio:
 def tune(iface,mhz):
     return subprocess.run([IW_BIN,"dev",iface,"set","freq",str(mhz)],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode==0
 
+def discover_cores(radio,iface,seconds):
+    found=set(); deadline=time.monotonic()+seconds
+    while time.monotonic()<deadline:
+        tune(iface,HOME_FREQ)
+        radio.send(BROADCAST,text_message(CORE_REQUEST))
+        for kind,item in radio.receive(.45):
+            if kind!="message": continue
+            src,payload=item; parsed=parse_text_message(payload)
+            if parsed and parsed[0]==CORE_REPLY: found.add(src)
+    return sorted(found)
+
 def format_status(stats):
     latest=stats.get("latest") or {}
     ssid=str(latest.get("ssid") or "--").replace("\n","_").replace("\r","_")[:22]
@@ -126,14 +137,18 @@ def format_status(stats):
     ))
 
 def main():
-    ap=argparse.ArgumentParser(); ap.add_argument("--iface",default="wlan1mon"); ap.add_argument("--core"); ap.add_argument("--stats",default="/tmp/c5-pager-node.json"); ap.add_argument("--render-stats"); a=ap.parse_args()
+    ap=argparse.ArgumentParser(); ap.add_argument("--iface",default="wlan1mon"); ap.add_argument("--core"); ap.add_argument("--stats",default="/tmp/c5-pager-node.json"); ap.add_argument("--render-stats"); ap.add_argument("--discover-seconds",type=float); a=ap.parse_args()
     if a.render_stats:
         try:
             with open(a.render_stats) as f: print(format_status(json.load(f)))
         except (OSError,ValueError): print(format_status({}))
         return
+    radio=Radio(a.iface)
+    if a.discover_seconds is not None:
+        for mac in discover_cores(radio,a.iface,max(.5,a.discover_seconds)): print(mac.hex(":"))
+        return
     if not a.core: ap.error("--core is required")
-    radio=Radio(a.iface); wanted=bytes.fromhex(a.core.replace(":","")); core=None; heartbeat=0; record_counter=struct.unpack("<I",os.urandom(4))[0]; seen={}; queue=[]; attempts={}; sent=0; acked=0; dropped=0; last_ack=None; latest=None; sweeps=0
+    wanted=bytes.fromhex(a.core.replace(":","")); core=None; heartbeat=0; record_counter=struct.unpack("<I",os.urandom(4))[0]; seen={}; queue=[]; attempts={}; sent=0; acked=0; dropped=0; last_ack=None; latest=None; sweeps=0
     while True:
         tune(a.iface,HOME_FREQ)
         if core is None:

@@ -6,6 +6,8 @@ Development preview for WiFi Pineapple Pager 2.0.0. It scans 6 GHz preferred sca
 
 - 6 GHz PSC scanning only
 - Existing C5 ESP-NOW discovery, heartbeat, and text framing
+- On-device Core discovery, explicit selection/confirmation, and persistent pairing
+- Manual on-device MAC entry as a fallback
 - Explicit $W6$ record type so the Core calculates the correct 6 GHz frequency
 - Bounded queue and 30-second BSSID deduplication
 
@@ -13,7 +15,7 @@ Development preview for WiFi Pineapple Pager 2.0.0. It scans 6 GHz preferred sca
 
 - C5 Wardriver firmware containing Pager protocol support
 - C5 configured as Core with ESP-NOW encryption disabled
-- The Core base MAC stored in `/root/.config/c5-wardriver/core_mac` as six colon-separated octets; replies and record ACKs from any other radio are rejected
+- Pair a replying Core from the Pager hardware menu, or enter its base MAC with the on-device MAC picker; the selection is saved persistently and replies/record ACKs from any other radio are rejected
 - Pager $wlan1mon$ available in monitor mode
 - python3-light installed on the Pager (MMC installations are detected automatically)
 

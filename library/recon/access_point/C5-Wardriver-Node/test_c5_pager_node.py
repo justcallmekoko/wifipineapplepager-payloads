@@ -9,6 +9,12 @@ class PayloadTests(unittest.TestCase):
         payload=PATH.with_name("payload.sh").read_text()
         self.assertIn("PYTHON_MMCLIB",payload)
         self.assertLess(payload.index("export PYTHONPATH"), payload.index('python3 "$DIR/c5_pager_node.py"'))
+    def test_payload_supports_explicit_on_device_pairing(self):
+        payload=PATH.with_name("payload.sh").read_text()
+        for expected in ("LIST_PICKER","MAC_PICKER","PAYLOAD_GET_CONFIG","PAYLOAD_SET_CONFIG","--discover-seconds 6","Pair with $CORE_MAC?"):
+            self.assertIn(expected,payload)
+        self.assertIn("CANDIDATES",payload)
+        self.assertLess(payload.index("CONFIRMATION_DIALOG"),payload.index("save_core",payload.index("Pair nearby Core")))
     def test_payload_supervises_worker_until_button_stop(self):
         payload=PATH.with_name("payload.sh").read_text()
         self.assertIn("while true; do",payload)
@@ -45,6 +51,20 @@ class ProtocolTests(unittest.TestCase):
         self.assertIn("LAUNCH_DIR=",payload)
         self.assertIn("/root/payloads/user/reconnaissance/c5_wardriver_node/c5_pager_node.py",payload)
         self.assertIn("/mmc/root/payloads/user/reconnaissance/c5_wardriver_node/c5_pager_node.py",payload)
+    def test_core_discovery_deduplicates_valid_replies(self):
+        core=bytes.fromhex("3cdc7586de94")
+        class FakeRadio:
+            def __init__(self): self.sent=[]
+            def send(self,dst,payload): self.sent.append((dst,payload)); return True
+            def receive(self,seconds):
+                yield "message",(core,node.text_message(node.CORE_REPLY))
+                yield "message",(core,node.text_message(node.CORE_REPLY))
+                yield "message",(b"\x01"*6,node.text_message(node.HEARTBEAT))
+        radio=FakeRadio()
+        with mock.patch.object(node.time,"monotonic",side_effect=[0,0,2]), mock.patch.object(node,"tune",return_value=True):
+            self.assertEqual(node.discover_cores(radio,"wlan1mon",1),[core])
+        self.assertEqual(radio.sent[0][0],node.BROADCAST)
+        self.assertEqual(node.parse_text_message(radio.sent[0][1])[0],node.CORE_REQUEST)
     def test_live_status_metrics(self):
         status=node.format_status({"core":"3c:dc:75:86:de:94","seen":12,"queued":3,"sent":10,"acked":9,"dropped":1,"latest":{"ssid":"Pager Test","channel":5,"rssi":-42}})
         for expected in ("CORE: LINKED","NET: Pager Test","CH: 5  RSSI: -42 dBm","SEEN: 12  QUEUE: 3","TX: 10  ACK: 9  DROP: 1","A: STOP"):
