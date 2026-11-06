@@ -25,6 +25,8 @@ class ProtocolTests(unittest.TestCase):
         self.assertIn("os.urandom(4)",source)
         self.assertIn('if not a.core: ap.error("--core is required")',source)
         self.assertIn("src==wanted",source)
+        self.assertIn('IW_BIN=os.environ.get("IW_BIN","/usr/sbin/iw")',source)
+        self.assertIn("subprocess.run([IW_BIN",source)
     def test_payload_uses_portable_core_mac_parser(self):
         payload=PATH.with_name("payload.sh").read_text()
         self.assertIn("open(sys.argv[1]).read().strip()",payload)

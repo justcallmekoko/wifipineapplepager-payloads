@@ -3,6 +3,7 @@
 import argparse, json, os, select, socket, struct, subprocess, time
 
 MAGIC=b"ENOW"; OUI=bytes.fromhex("18fe34"); BROADCAST=b"\xff"*6
+IW_BIN=os.environ.get("IW_BIN","/usr/sbin/iw")
 CORE_REQUEST=1; CORE_REPLY=2; HEARTBEAT=3; TEXT=4; RECORD_ACK=6
 HOME_FREQ=2437; PSC=[5,21,37,53,69,85,101,117,133,149,165,181,197,213,229]
 
@@ -96,7 +97,7 @@ class Radio:
             yield "message",(src,body[15:10+body[9]])
 
 def tune(iface,mhz):
-    return subprocess.run(["iw","dev",iface,"set","freq",str(mhz)],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode==0
+    return subprocess.run([IW_BIN,"dev",iface,"set","freq",str(mhz)],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode==0
 
 def format_status(stats):
     latest=stats.get("latest") or {}
