@@ -1,4 +1,5 @@
 import importlib.util, pathlib, struct, unittest
+from unittest import mock
 
 PATH=pathlib.Path(__file__).with_name("c5_pager_node.py")
 spec=importlib.util.spec_from_file_location("node",PATH); node=importlib.util.module_from_spec(spec); spec.loader.exec_module(node)
@@ -8,6 +9,15 @@ class PayloadTests(unittest.TestCase):
         payload=PATH.with_name("payload.sh").read_text()
         self.assertIn("PYTHON_MMCLIB",payload)
         self.assertLess(payload.index("export PYTHONPATH"), payload.index('python3 "$DIR/c5_pager_node.py"'))
+    def test_payload_supervises_worker_until_button_stop(self):
+        payload=PATH.with_name("payload.sh").read_text()
+        self.assertIn("while true; do",payload)
+        self.assertIn("Node worker stopped; restarting...",payload)
+        self.assertIn("start_worker",payload)
+    def test_splash_is_pager_sized_title_card(self):
+        data=PATH.with_name("splash.png").read_bytes()
+        self.assertEqual(data[:8],b"\x89PNG\r\n\x1a\n")
+        self.assertEqual(struct.unpack(">II",data[16:24]),(480,222))
 
 class ProtocolTests(unittest.TestCase):
     def test_text_message_matches_c5_struct(self):
@@ -56,5 +66,16 @@ class ProtocolTests(unittest.TestCase):
         present=(1<<1)|(1<<3)|(1<<5)
         rt=struct.pack("<BBHIBxHHb",0,0,15,present,0,2412,0,-42)
         self.assertIsNone(node.beacon_record(rt+b"\0"*64))
+    def test_transient_network_down_does_not_escape_receive(self):
+        radio=node.Radio.__new__(node.Radio)
+        radio.sock=mock.Mock()
+        radio.sock.recv.side_effect=OSError(127,"Network is down")
+        with mock.patch.object(node.select,"select",return_value=([radio.sock],[],[])), mock.patch.object(node.time,"sleep"):
+            self.assertEqual(list(radio.receive(.01)),[])
+    def test_transient_network_down_does_not_escape_send(self):
+        radio=node.Radio.__new__(node.Radio); radio.mac=b"\x01"*6; radio.seq=0; radio.rt=b""; radio.sock=mock.Mock()
+        radio.sock.send.side_effect=OSError(127,"Network is down")
+        with mock.patch.object(node.time,"sleep"):
+            self.assertFalse(radio.send(b"\x02"*6,b"test"))
 
 if __name__=="__main__": unittest.main()

@@ -79,13 +79,25 @@ class Radio:
         self.seq=(self.seq+1)&0xfff
         hdr=struct.pack("<HH6s6s6sH",0x00d0,0,dst,self.mac,BROADCAST,self.seq<<4)
         body=b"\x7f"+OUI+os.urandom(4)+b"\xdd"+bytes([len(payload)+5])+OUI+b"\x04\x01"+payload
-        self.sock.send(self.rt+hdr+body)
+        try:
+            self.sock.send(self.rt+hdr+body)
+            return True
+        except OSError:
+            # Channel/service transitions can briefly report ENETDOWN.
+            time.sleep(.1)
+            return False
     def receive(self,seconds,beacons=False):
         end=time.monotonic()+seconds
         while time.monotonic()<end:
             ready,_,_=select.select([self.sock],[],[],min(.05,end-time.monotonic()))
             if not ready: continue
-            pkt=self.sock.recv(4096); info=radiotap(pkt)
+            try:
+                pkt=self.sock.recv(4096)
+            except OSError:
+                # Keep the long-running payload alive across transient radio resets.
+                time.sleep(.1)
+                return
+            info=radiotap(pkt)
             if not info: continue
             frame=pkt[info[0]:]
             if beacons and len(frame)>=36 and frame[0] in (0x80,0x50): yield "beacon",pkt; continue
