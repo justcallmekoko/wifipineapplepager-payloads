@@ -28,8 +28,8 @@ python3 -c 'import argparse,json,select,socket,struct,subprocess' >/dev/null 2>&
 }
 iw dev "$IFACE" info >/dev/null 2>&1 || { ERROR_DIALOG "wlan1mon is unavailable."; exit 1; }
 [ -s "$CORE_CONFIG" ] || { ERROR_DIALOG "Configure the C5 Core MAC in $CORE_CONFIG first."; exit 1; }
-CORE_MAC=$(tr -d '[:space:]' <"$CORE_CONFIG")
-echo "$CORE_MAC" | grep -Eq '^([[:xdigit:]]{2}:){5}[[:xdigit:]]{2}$' || { ERROR_DIALOG "The configured C5 Core MAC is invalid."; exit 1; }
+CORE_MAC=$(python3 -c 'import sys; print(open(sys.argv[1]).read().strip())' "$CORE_CONFIG")
+echo "$CORE_MAC" | grep -Eq '^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$' || { ERROR_DIALOG "The configured C5 Core MAC is invalid."; exit 1; }
 PROMPT_IMAGE "$DIR/splash.png"
 CONFIRMATION_DIALOG "Start C5 Wardriver 6 GHz node?" || exit 0
 OLD_HOP=$(uci -q get pineapd.wlan1mon.hop); OLD_CHANNEL=$(uci -q get pineapd.wlan1mon.channel)

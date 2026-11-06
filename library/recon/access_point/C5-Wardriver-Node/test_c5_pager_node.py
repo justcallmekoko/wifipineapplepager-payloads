@@ -25,6 +25,11 @@ class ProtocolTests(unittest.TestCase):
         self.assertIn("os.urandom(4)",source)
         self.assertIn('add_argument("--core",required=True)',source)
         self.assertIn("src==wanted",source)
+    def test_payload_uses_portable_core_mac_parser(self):
+        payload=PATH.with_name("payload.sh").read_text()
+        self.assertIn("open(sys.argv[1]).read().strip()",payload)
+        self.assertNotIn("tr -d '[:space:]'",payload)
+        self.assertIn("[0-9A-Fa-f]",payload)
     def test_6ghz_beacon_record(self):
         present=(1<<1)|(1<<3)|(1<<5)
         rt=struct.pack("<BBHIBxHHb",0,0,15,present,0,5975,0,-42)
