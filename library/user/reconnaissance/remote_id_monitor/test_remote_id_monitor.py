@@ -161,6 +161,10 @@ class DecoderTests(unittest.TestCase):
         self.assertEqual(rid.parse_interface_channel(output), 6)
         self.assertIsNone(rid.parse_interface_channel("Interface wlan1mon\n\ttype monitor\n"))
 
+    def test_iw_uses_absolute_stock_path_when_available(self):
+        if Path("/usr/sbin/iw").exists():
+            self.assertEqual(rid.IW_COMMAND, "/usr/sbin/iw")
+
     def test_pcap_reader(self):
         packet = radiotap_packet(beacon())
         reader = rid.PcapReader(io.BytesIO(pcap(packet)))

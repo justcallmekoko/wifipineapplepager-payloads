@@ -34,6 +34,7 @@ CSV_INTERVAL_SECONDS = 5
 TRANSPORT_WIFI_BEACON = "wifi-beacon"
 TRANSPORT_WIFI_NAN = "wifi-nan"
 TRANSPORT_BLE = "ble"
+IW_COMMAND = "/usr/sbin/iw" if os.path.exists("/usr/sbin/iw") else "iw"
 UA_TYPES = {
     0: "None", 1: "Aeroplane", 2: "Helicopter", 3: "Gyroplane",
     4: "Hybrid Lift", 5: "Ornithopter", 6: "Glider", 7: "Kite",
@@ -921,7 +922,7 @@ def parse_interface_channel(text):
 def interface_channel(interface):
     try:
         output = subprocess.check_output(
-            ["iw", "dev", interface, "info"],
+            [IW_COMMAND, "dev", interface, "info"],
             stderr=subprocess.DEVNULL, text=True,
         )
     except (OSError, subprocess.CalledProcessError):
@@ -932,7 +933,7 @@ def interface_channel(interface):
 def set_interface_channel(interface, channel):
     try:
         return subprocess.call(
-            ["iw", "dev", interface, "set", "channel", str(channel)],
+            [IW_COMMAND, "dev", interface, "set", "channel", str(channel)],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         ) == 0
     except OSError:

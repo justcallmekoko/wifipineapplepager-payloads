@@ -2,10 +2,11 @@
 # Title: Remote ID Radar
 # Author: JustCallMeKoko
 # Description: Passively detects and tracks ASTM/OpenDroneID broadcasts over Wi-Fi and Bluetooth
-# Version: 0.1.2
+# Version: 0.1.3
 # Category: Reconnaissance
 
 LAUNCH_DIR="$(cd "$(dirname "$0")" && pwd)"
+export PATH="/usr/sbin:/usr/bin:/sbin:/bin:$PATH"
 if [ -f "$LAUNCH_DIR/remote_id_monitor.py" ]; then
   DIR="$LAUNCH_DIR"
 elif [ -f /root/payloads/user/reconnaissance/remote_id_monitor/remote_id_monitor.py ]; then
@@ -168,7 +169,7 @@ while true; do
         fi
       fi
       ;;
-    "About") PROMPT "Remote ID Radar v0.1.2\n\nPassive ASTM/OpenDroneID monitor for Wi-Fi Beacon, Wi-Fi NAN, and Bluetooth broadcasts. Wi-Fi uses Remote ID channel 6 and restores the prior channel when stopped.\n\nCensor mode masks on-screen identifiers and persists across payload restarts. Loot retains complete records.\n\nLogs JSONL, CSV, and GPX under the MMC loot directory when available." ;;
+    "About") PROMPT "Remote ID Radar v0.1.3\n\nPassive ASTM/OpenDroneID monitor for Wi-Fi Beacon, Wi-Fi NAN, and Bluetooth broadcasts. Wi-Fi uses Remote ID channel 6 and restores the prior channel when stopped.\n\nCensor mode masks on-screen identifiers and persists across payload restarts. Loot retains complete records.\n\nLogs JSONL, CSV, and GPX under the MMC loot directory when available." ;;
     "Exit") exit 0 ;;
   esac
 done
