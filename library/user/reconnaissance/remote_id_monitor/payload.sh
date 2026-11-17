@@ -2,7 +2,7 @@
 # Title: Remote ID Radar
 # Author: JustCallMeKoko
 # Description: Passively detects and tracks ASTM/OpenDroneID broadcasts over Wi-Fi and Bluetooth
-# Version: 0.1.3
+# Version: 0.1.4
 # Category: Reconnaissance
 
 LAUNCH_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -48,7 +48,18 @@ if [ -d "$PYTHON_MMCLIB" ]; then
 fi
 command -v tcpdump >/dev/null 2>&1 || { ERROR_DIALOG "The stock tcpdump package is required."; exit 1; }
 iw dev wlan1mon info >/dev/null 2>&1 || { ERROR_DIALOG "wlan1mon is unavailable."; exit 1; }
-python3 -m py_compile "$WORKER" >/dev/null 2>&1 || { ERROR_DIALOG "Remote ID Radar failed its startup check."; exit 1; }
+STARTUP_LOG=/tmp/remote-id-radar-startup.$$.log
+if ! PYTHONDONTWRITEBYTECODE=1 python3 -B "$WORKER" --self-check >"$STARTUP_LOG" 2>&1; then
+  if grep -Eq "ImportError|ModuleNotFoundError|No module named|cannot open shared object file" "$STARTUP_LOG"; then
+    ERROR_DIALOG "Remote ID Radar needs the full OpenWrt python3 package. See $STARTUP_LOG"
+  elif grep -Eq "SyntaxError|IndentationError" "$STARTUP_LOG"; then
+    ERROR_DIALOG "Remote ID Radar worker is damaged. Reinstall the payload. See $STARTUP_LOG"
+  else
+    ERROR_DIALOG "Remote ID Radar could not start. See $STARTUP_LOG"
+  fi
+  exit 1
+fi
+rm -f "$STARTUP_LOG"
 
 if ! mkdir "$LOCKDIR" 2>/dev/null; then
   owner=$(cat "$LOCKDIR/pid" 2>/dev/null || true)
@@ -169,7 +180,7 @@ while true; do
         fi
       fi
       ;;
-    "About") PROMPT "Remote ID Radar v0.1.3\n\nPassive ASTM/OpenDroneID monitor for Wi-Fi Beacon, Wi-Fi NAN, and Bluetooth broadcasts. Wi-Fi uses Remote ID channel 6 and restores the prior channel when stopped.\n\nCensor mode masks on-screen identifiers and persists across payload restarts. Loot retains complete records.\n\nLogs JSONL, CSV, and GPX under the MMC loot directory when available." ;;
+    "About") PROMPT "Remote ID Radar v0.1.4\n\nPassive ASTM/OpenDroneID monitor for Wi-Fi Beacon, Wi-Fi NAN, and Bluetooth broadcasts. Wi-Fi uses Remote ID channel 6 and restores the prior channel when stopped.\n\nCensor mode masks on-screen identifiers and persists across payload restarts. Loot retains complete records.\n\nLogs JSONL, CSV, and GPX under the MMC loot directory when available." ;;
     "Exit") exit 0 ;;
   esac
 done

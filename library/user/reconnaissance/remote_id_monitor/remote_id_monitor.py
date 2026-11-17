@@ -1103,6 +1103,7 @@ def detail_state(path, index, censor=False):
 
 def main(argv=None):
     parser = argparse.ArgumentParser()
+    parser.add_argument("--self-check", action="store_true")
     parser.add_argument("--run", action="store_true")
     parser.add_argument("--interface", default="wlan1mon")
     parser.add_argument("--wifi-channel", type=int, choices=range(1, 14), default=6)
@@ -1119,6 +1120,8 @@ def main(argv=None):
     parser.add_argument("--get-censor", action="store_true")
     parser.add_argument("--set-censor", choices=("on", "off"))
     args = parser.parse_args(argv)
+    if args.self_check:
+        return 0
     if args.run:
         return run_monitor(args)
     if args.render_state:

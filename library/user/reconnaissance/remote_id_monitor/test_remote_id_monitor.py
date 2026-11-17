@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 import io
 import json
+import os
 import struct
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -82,6 +85,34 @@ def pcap(packet):
     global_header = b"\xd4\xc3\xb2\xa1" + struct.pack("<HHIIII", 2, 4, 0, 0, 65535, 127)
     packet_header = struct.pack("<IIII", 1, 0, len(packet), len(packet))
     return global_header + packet_header + packet
+
+
+class StartupCompatibilityTests(unittest.TestCase):
+    def test_worker_self_check(self):
+        self.assertEqual(rid.main(["--self-check"]), 0)
+
+    def test_worker_self_check_subprocess_has_no_side_effects(self):
+        worker = Path(__file__).with_name("remote_id_monitor.py")
+        with tempfile.TemporaryDirectory() as directory:
+            environment = os.environ.copy()
+            environment["PYTHONDONTWRITEBYTECODE"] = "1"
+            result = subprocess.run(
+                [sys.executable, "-B", str(worker), "--self-check"],
+                cwd=directory, env=environment, capture_output=True, text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout, "")
+            self.assertEqual(result.stderr, "")
+            self.assertEqual(list(Path(directory).iterdir()), [])
+
+    def test_launcher_uses_runtime_check_not_py_compile(self):
+        launcher = Path(__file__).with_name("payload.sh").read_text()
+        self.assertIn('python3 -B "$WORKER" --self-check', launcher)
+        self.assertIn("ImportError|ModuleNotFoundError|No module named", launcher)
+        self.assertIn("remote-id-radar-startup.$$.log", launcher)
+        self.assertIn("full OpenWrt python3 package", launcher)
+        self.assertNotIn("python3 -m py_compile", launcher)
 
 
 class DecoderTests(unittest.TestCase):
