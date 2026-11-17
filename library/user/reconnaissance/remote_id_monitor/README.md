@@ -30,7 +30,7 @@ Censor mode affects the Pager UI only. JSONL, CSV, and GPX loot retains complete
 
 ## Requirements
 
-- WiFi Pineapple Pager with `wlan1mon`, tcpdump, and the full OpenWrt `python3` package. The smaller `python3-base` or `python3-light` package alone is insufficient.
+- WiFi Pineapple Pager with `wlan1mon`, tcpdump, and OpenWrt `python3-light` (which pulls in `python3-base`) or the full `python3` package. `python3-base` alone is insufficient.
 - Optional USB GPS supported by the stock Pager GPS service.
 - The stock `blue5` service must be running for BLE Remote ID. The payload observes its existing scan through `btmon` and deliberately does not contend for the controller. Wi-Fi monitoring remains available if that service is unavailable.
 

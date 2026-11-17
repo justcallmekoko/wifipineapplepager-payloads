@@ -51,7 +51,7 @@ iw dev wlan1mon info >/dev/null 2>&1 || { ERROR_DIALOG "wlan1mon is unavailable.
 STARTUP_LOG=/tmp/remote-id-radar-startup.$$.log
 if ! PYTHONDONTWRITEBYTECODE=1 python3 -B "$WORKER" --self-check >"$STARTUP_LOG" 2>&1; then
   if grep -Eq "ImportError|ModuleNotFoundError|No module named|cannot open shared object file" "$STARTUP_LOG"; then
-    ERROR_DIALOG "Remote ID Radar needs the full OpenWrt python3 package. See $STARTUP_LOG"
+    ERROR_DIALOG "Remote ID Radar needs OpenWrt python3-light (or full python3). See $STARTUP_LOG"
   elif grep -Eq "SyntaxError|IndentationError" "$STARTUP_LOG"; then
     ERROR_DIALOG "Remote ID Radar worker is damaged. Reinstall the payload. See $STARTUP_LOG"
   else

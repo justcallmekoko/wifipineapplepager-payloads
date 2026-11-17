@@ -111,7 +111,7 @@ class StartupCompatibilityTests(unittest.TestCase):
         self.assertIn('python3 -B "$WORKER" --self-check', launcher)
         self.assertIn("ImportError|ModuleNotFoundError|No module named", launcher)
         self.assertIn("remote-id-radar-startup.$$.log", launcher)
-        self.assertIn("full OpenWrt python3 package", launcher)
+        self.assertIn("python3-light (or full python3)", launcher)
         self.assertNotIn("python3 -m py_compile", launcher)
 
 
