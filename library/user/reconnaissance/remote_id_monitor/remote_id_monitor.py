@@ -643,6 +643,8 @@ class RemoteIdMonitor:
         self.wifi_alive = False
         self.ble_alive = False
         self.last_gpx_write = 0
+        self.wifi_channel = None
+        self.original_wifi_channel = None
 
     def stop(self):
         self.stop_event.set()
@@ -785,6 +787,8 @@ class RemoteIdMonitor:
                 "capture_errors": list(self.capture_errors),
                 "wifi_alive": self.wifi_alive,
                 "ble_alive": self.ble_alive,
+                "wifi_channel": self.wifi_channel,
+                "original_wifi_channel": self.original_wifi_channel,
                 "records": records,
             }
 
@@ -909,8 +913,40 @@ class RemoteIdMonitor:
         self.last_gpx_write = time.time()
 
 
+def parse_interface_channel(text):
+    match = re.search(r"^\s*channel\s+(\d+)\b", text, re.MULTILINE)
+    return int(match.group(1)) if match else None
+
+
+def interface_channel(interface):
+    try:
+        output = subprocess.check_output(
+            ["iw", "dev", interface, "info"],
+            stderr=subprocess.DEVNULL, text=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return parse_interface_channel(output)
+
+
+def set_interface_channel(interface, channel):
+    try:
+        return subprocess.call(
+            ["iw", "dev", interface, "set", "channel", str(channel)],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        ) == 0
+    except OSError:
+        return False
+
+
 def run_monitor(args):
     monitor = RemoteIdMonitor(args.state, args.events, args.csv, args.gpx)
+    monitor.original_wifi_channel = interface_channel(args.interface)
+    if args.wifi_channel:
+        if set_interface_channel(args.interface, args.wifi_channel):
+            monitor.wifi_channel = args.wifi_channel
+        else:
+            monitor._capture_error(f"Wi-Fi: could not tune {args.interface} to channel {args.wifi_channel}")
     def stop_handler(_signum, _frame):
         monitor.stop()
     signal.signal(signal.SIGTERM, stop_handler)
@@ -933,6 +969,11 @@ def run_monitor(args):
         for thread in threads:
             thread.join(timeout=3)
         monitor._reap_all_processes()
+        if (monitor.original_wifi_channel and monitor.wifi_channel and
+                monitor.original_wifi_channel != monitor.wifi_channel):
+            if not set_interface_channel(args.interface, monitor.original_wifi_channel):
+                monitor._capture_error(
+                    f"Wi-Fi: could not restore channel {monitor.original_wifi_channel}")
         monitor.write_gpx()
         monitor.write_state("stopped")
     return 0
@@ -961,7 +1002,8 @@ def render_state(path):
     records = state.get("records", [])
     active_count = state.get("active_count", sum(1 for record in records if not record.get("is_lost")))
     lines = [f"REMOTE ID RADAR  {elapsed // 60:02d}:{elapsed % 60:02d}",
-             f"ACTIVE {active_count}  SEEN {len(records)}  W {state.get('frames', 0)} B {state.get('ble_frames', 0)}"]
+             f"ACTIVE {active_count}  SEEN {len(records)}  W {state.get('frames', 0)} B {state.get('ble_frames', 0)}"
+             + (f" Ch {state['wifi_channel']}" if state.get("wifi_channel") else "")]
     if state.get("capture_errors"):
         lines.append("WARN " + state["capture_errors"][-1][:54])
     if not records:
@@ -1019,6 +1061,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--run", action="store_true")
     parser.add_argument("--interface", default="wlan1mon")
+    parser.add_argument("--wifi-channel", type=int, choices=range(1, 14), default=6)
     parser.add_argument("--state", default="/tmp/remote-id-radar.json")
     parser.add_argument("--events", default="/tmp/remote-id-radar.jsonl")
     parser.add_argument("--csv", default="/tmp/remote-id-radar.csv")

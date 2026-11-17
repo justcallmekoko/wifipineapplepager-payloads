@@ -2,7 +2,7 @@
 # Title: Remote ID Radar
 # Author: JustCallMeKoko
 # Description: Passively detects and tracks ASTM/OpenDroneID broadcasts over Wi-Fi and Bluetooth
-# Version: 0.1.0
+# Version: 0.1.1
 # Category: Reconnaissance
 
 LAUNCH_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -88,7 +88,7 @@ run_monitor() {
   gpx="$loot_dir/remote_id_${timestamp}.gpx"
   rm -f "$STATE"
   : >"$LOGFILE"
-  python3 "$WORKER" --run --interface wlan1mon --state "$STATE" --events "$events" --csv "$csv" --gpx "$gpx" >>"$LOGFILE" 2>&1 &
+  python3 "$WORKER" --run --interface wlan1mon --wifi-channel 6 --state "$STATE" --events "$events" --csv "$csv" --gpx "$gpx" >>"$LOGFILE" 2>&1 &
   PID=$!
 
   LOG cyan "REMOTE ID RADAR"
@@ -144,7 +144,7 @@ while true; do
   case "$action" in
     "Start live monitor") run_monitor ;;
     "View last detections") show_devices ;;
-    "About") PROMPT "Remote ID Radar v0.1.0\n\nPassive ASTM/OpenDroneID monitor for Wi-Fi Beacon, Wi-Fi NAN, and Bluetooth broadcasts.\n\nLogs JSONL, CSV, and GPX under the MMC loot directory when available." ;;
+    "About") PROMPT "Remote ID Radar v0.1.1\n\nPassive ASTM/OpenDroneID monitor for Wi-Fi Beacon, Wi-Fi NAN, and Bluetooth broadcasts. Wi-Fi uses Remote ID channel 6 and restores the prior channel when stopped.\n\nLogs JSONL, CSV, and GPX under the MMC loot directory when available." ;;
     "Exit") exit 0 ;;
   esac
 done

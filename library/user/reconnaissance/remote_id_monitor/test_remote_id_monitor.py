@@ -156,6 +156,11 @@ class DecoderTests(unittest.TestCase):
         self.assertEqual(rssi, -47)
         self.assertEqual(channel, 1)
 
+    def test_interface_channel_parser(self):
+        output = "Interface wlan1mon\n\ttype monitor\n\tchannel 6 (2437 MHz), width: 20 MHz\n"
+        self.assertEqual(rid.parse_interface_channel(output), 6)
+        self.assertIsNone(rid.parse_interface_channel("Interface wlan1mon\n\ttype monitor\n"))
+
     def test_pcap_reader(self):
         packet = radiotap_packet(beacon())
         reader = rid.PcapReader(io.BytesIO(pcap(packet)))

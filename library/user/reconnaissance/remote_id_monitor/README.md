@@ -1,6 +1,6 @@
 # Remote ID Radar
 
-Remote ID Radar is a passive ASTM/OpenDroneID monitor for the Hak5 WiFi Pineapple Pager. It watches the Pager's existing monitor interface and Bluetooth controller without transmitting attack traffic or changing PineAP channel settings.
+Remote ID Radar is a passive ASTM/OpenDroneID monitor for the Hak5 WiFi Pineapple Pager. It watches the Pager's existing monitor interface and Bluetooth controller without transmitting attack traffic. While monitoring, it temporarily tunes wlan1mon to Remote ID channel 6 and restores the prior channel when stopped.
 
 ## Features
 
@@ -11,7 +11,7 @@ Remote ID Radar is a passive ASTM/OpenDroneID monitor for the Hak5 WiFi Pineappl
 - Uses an attached GPS to calculate distance and bearing to the aircraft.
 - Merges Wi-Fi and Bluetooth observations that advertise the same UAS ID.
 - Saves rate-limited JSONL events, CSV telemetry, and periodically checkpointed GPX waypoints under `/mmc/root/loot/remote_id_monitor` when MMC storage is available, otherwise `/root/loot/remote_id_monitor`.
-- Restores cleanly without changing PineAP hopping or channel configuration.
+- Tunes the monitor interface to channel 6 for Wi-Fi Remote ID and restores its prior channel during cleanup without changing persistent PineAP configuration.
 
 ## Usage
 
@@ -35,7 +35,7 @@ No downloaded or staged code is required.
 
 ## Verification boundary
 
-Records are marked lost after 15 seconds without a broadcast; historical records remain available for review. Remote ID is a broadcast protocol. A missing detection does not prove that no drone is present: the aircraft may not broadcast Remote ID, may use an unsupported transport, may be out of range, or may be observed while the Pager is on another Wi-Fi channel.
+Records are marked lost after 15 seconds without a broadcast; historical records remain available for review. Remote ID is a broadcast protocol. A missing detection does not prove that no drone is present: the aircraft may not broadcast Remote ID, may use an unsupported transport, may be out of range, or may broadcast Wi-Fi Remote ID on a channel other than 6.
 
 ## Credits and license
 
