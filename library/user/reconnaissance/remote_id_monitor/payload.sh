@@ -2,7 +2,7 @@
 # Title: Remote ID Radar
 # Author: JustCallMeKoko
 # Description: Passively detects and tracks ASTM/OpenDroneID broadcasts over Wi-Fi and Bluetooth
-# Version: 0.1.1
+# Version: 0.1.2
 # Category: Reconnaissance
 
 LAUNCH_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -24,6 +24,7 @@ LOGFILE=/tmp/remote-id-radar.log
 PID=""
 LOCKDIR=/tmp/remote-id-radar.lock
 LOCKED=0
+SETTINGS=/root/.config/remote_id_radar/settings.json
 
 cleanup() {
   if [ -n "$PID" ]; then
@@ -62,7 +63,9 @@ LOCKED=1
 
 show_devices() {
   [ -s "$STATE" ] || { PROMPT "No Remote ID session data is available."; return; }
-  mapfile -t devices < <(python3 "$WORKER" --list-state "$STATE")
+  CENSOR_FLAG=""
+  [ "$(python3 "$WORKER" --get-censor --settings "$SETTINGS")" = 1 ] && CENSOR_FLAG=--censor
+  mapfile -t devices < <(python3 "$WORKER" --list-state "$STATE" $CENSOR_FLAG)
   [ "${#devices[@]}" -gt 0 ] || devices=("No Remote ID devices")
   if [ "${devices[0]}" = "No Remote ID devices" ]; then
     PROMPT "No Remote ID devices were detected."
@@ -71,7 +74,7 @@ show_devices() {
   selected=$(LIST_PICKER "Remote ID devices" "${devices[@]}" "${devices[0]}") || return
   index=$(printf '%s' "$selected" | sed -n 's/^\([0-9][0-9]*\)\..*/\1/p')
   [ -n "$index" ] || return
-  detail=$(python3 "$WORKER" --detail-state "$STATE" --index "$((index - 1))")
+  detail=$(python3 "$WORKER" --detail-state "$STATE" --index "$((index - 1))" $CENSOR_FLAG)
   PROMPT "$detail"
 }
 
@@ -90,6 +93,8 @@ run_monitor() {
   : >"$LOGFILE"
   python3 "$WORKER" --run --interface wlan1mon --wifi-channel 6 --state "$STATE" --events "$events" --csv "$csv" --gpx "$gpx" >>"$LOGFILE" 2>&1 &
   PID=$!
+  CENSOR_FLAG=""
+  [ "$(python3 "$WORKER" --get-censor --settings "$SETTINGS")" = 1 ] && CENSOR_FLAG=--censor
 
   LOG cyan "REMOTE ID RADAR"
   LOG "Passive Wi-Fi + Bluetooth monitor"
@@ -99,7 +104,7 @@ run_monitor() {
   last_heartbeat=0
   while kill -0 "$PID" 2>/dev/null; do
     if [ -s "$STATE" ]; then
-      render=$(python3 "$WORKER" --render-state "$STATE" 2>/dev/null || true)
+      render=$(python3 "$WORKER" --render-state "$STATE" $CENSOR_FLAG 2>/dev/null || true)
       event=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("event_seq",0))' "$STATE" 2>/dev/null || echo 0)
       now=$(date +%s)
       if [ "$event" -gt "$last_event" ] 2>/dev/null; then
@@ -133,18 +138,37 @@ run_monitor() {
     ERROR_DIALOG "Monitor stopped before producing status. See $LOGFILE"
     return
   fi
-  summary=$(python3 "$WORKER" --render-state "$STATE")
+  summary=$(python3 "$WORKER" --render-state "$STATE" $CENSOR_FLAG)
   PROMPT "$summary\n\nLoot: $loot_dir"
   show_devices
 }
 
 [ -f "$SPLASH" ] && PROMPT_IMAGE "$SPLASH"
 while true; do
-  action=$(LIST_PICKER "REMOTE ID RADAR" "Start live monitor" "View last detections" "About" "Exit" "Start live monitor") || exit 0
+  censor_state=OFF
+  [ "$(python3 "$WORKER" --get-censor --settings "$SETTINGS")" = 1 ] && censor_state=ON
+  action=$(LIST_PICKER "REMOTE ID RADAR" "Start live monitor" "View last detections" "Censor mode: $censor_state" "About" "Exit" "Start live monitor") || exit 0
   case "$action" in
     "Start live monitor") run_monitor ;;
     "View last detections") show_devices ;;
-    "About") PROMPT "Remote ID Radar v0.1.1\n\nPassive ASTM/OpenDroneID monitor for Wi-Fi Beacon, Wi-Fi NAN, and Bluetooth broadcasts. Wi-Fi uses Remote ID channel 6 and restores the prior channel when stopped.\n\nLogs JSONL, CSV, and GPX under the MMC loot directory when available." ;;
+    "Censor mode: "*)
+      if [ "$censor_state" = ON ]; then
+        if python3 "$WORKER" --set-censor off --settings "$SETTINGS" &&
+           [ "$(python3 "$WORKER" --get-censor --settings "$SETTINGS")" = 0 ]; then
+          PROMPT "Censor mode disabled."
+        else
+          ERROR_DIALOG "Could not save the censor setting."
+        fi
+      else
+        if python3 "$WORKER" --set-censor on --settings "$SETTINGS" &&
+           [ "$(python3 "$WORKER" --get-censor --settings "$SETTINGS")" = 1 ]; then
+          PROMPT "Censor mode enabled."
+        else
+          ERROR_DIALOG "Could not save the censor setting."
+        fi
+      fi
+      ;;
+    "About") PROMPT "Remote ID Radar v0.1.2\n\nPassive ASTM/OpenDroneID monitor for Wi-Fi Beacon, Wi-Fi NAN, and Bluetooth broadcasts. Wi-Fi uses Remote ID channel 6 and restores the prior channel when stopped.\n\nCensor mode masks on-screen identifiers and persists across payload restarts. Loot retains complete records.\n\nLogs JSONL, CSV, and GPX under the MMC loot directory when available." ;;
     "Exit") exit 0 ;;
   esac
 done

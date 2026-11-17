@@ -256,6 +256,50 @@ class DecoderTests(unittest.TestCase):
             self.assertIn("Scanning", rid.render_state(state))
             self.assertEqual(rid.list_state(state), ["No Remote ID devices"])
 
+    def test_censor_matches_marauder_identifier_rules(self):
+        self.assertEqual(rid.censor_identifier("1581FBLKC263C00B145X"), "158XXXXXXXXXXXXXXXXX")
+        self.assertEqual(rid.censor_identifier("8c:1e:d9:d1:cb:bc"), "8c:1e:XX:XX:XX:XX")
+        self.assertEqual(rid.censor_identifier("ABC"), "ABC")
+
+    def test_censor_setting_persists_and_masks_ui_only(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            settings = root / "settings.json"
+            state = root / "state.json"
+            rid.save_censor_setting(settings, True)
+            self.assertTrue(rid.load_censor_setting(settings))
+            record = {
+                "uas_id": "1581FBLKC263C00B145X",
+                "operator_id": "OPERATOR-123",
+                "mac": "8c:1e:d9:d1:cb:bc",
+                "transports": ["wifi-beacon"],
+                "last_seen": 10,
+            }
+            state.write_text(json.dumps({"status": "stopped", "started": 1, "records": [record]}))
+            rendered = rid.render_state(state, censor=True)
+            detail = rid.detail_state(state, 0, censor=True)
+            self.assertIn("158XXXXXXXXXXXXXXXXX", rendered)
+            self.assertNotIn(record["uas_id"], rendered)
+            self.assertIn("MAC: 8c:1e:XX:XX:XX:XX", detail)
+            self.assertIn("Operator: OPEXXXXXXXXX", detail)
+            self.assertEqual(json.loads(state.read_text())["records"][0]["uas_id"], record["uas_id"])
+            rid.save_censor_setting(settings, False)
+            self.assertFalse(rid.load_censor_setting(settings))
+
+    def test_censor_masks_description_fallback_and_note(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory) / "state.json"
+            record = {
+                "description": "DroneAlpha",
+                "mac": "8c:1e:d9:d1:cb:bc",
+                "transports": ["wifi-beacon"],
+                "last_seen": 10,
+            }
+            state.write_text(json.dumps({"status": "stopped", "started": 1, "records": [record]}))
+            detail = rid.detail_state(state, 0, censor=True)
+            self.assertIn("DroXXXXXXX", detail)
+            self.assertNotIn("DroneAlpha", detail)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -992,11 +992,50 @@ def direction_name(degrees):
     return names[int((degrees + 22.5) // 45) % 8]
 
 
-def short_identity(record):
-    return record.get("uas_id") or record.get("description") or record.get("mac", "unknown")
+def looks_like_mac(value):
+    return bool(re.fullmatch(r"[0-9A-Fa-f]{2}([:-][0-9A-Fa-f]{2}){5}", str(value)))
 
 
-def render_state(path):
+def censor_name(value):
+    value = str(value)
+    return value[:3] + "X" * max(0, len(value) - 3)
+
+
+def censor_mac(value):
+    result = []
+    hex_digits = 0
+    for character in str(value):
+        if character in "0123456789abcdefABCDEF":
+            result.append(character if hex_digits < 4 else "X")
+            hex_digits += 1
+        else:
+            result.append(character)
+    return "".join(result)
+
+
+def censor_identifier(value):
+    return censor_mac(value) if looks_like_mac(value) else censor_name(value)
+
+
+def load_censor_setting(path):
+    try:
+        with open(path) as handle:
+            return bool(json.load(handle).get("censor", False))
+    except (OSError, ValueError, TypeError, AttributeError):
+        return False
+
+
+def save_censor_setting(path, enabled):
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    atomic_json(path, {"censor": bool(enabled)})
+
+
+def short_identity(record, censor=False):
+    identity = record.get("uas_id") or record.get("description") or record.get("mac", "unknown")
+    return censor_identifier(identity) if censor else identity
+
+
+def render_state(path, censor=False):
     state = load_state(path)
     elapsed = max(0, int(time.time() - state.get("started", time.time())))
     records = state.get("records", [])
@@ -1013,7 +1052,7 @@ def render_state(path):
         visible_records = records
     for record in visible_records[:3]:
         transport = "+".join("W" if value.startswith("wifi") else "B" for value in record.get("transports", []))
-        identity = short_identity(record)[:24]
+        identity = short_identity(record, censor)[:24]
         rssi = f"{record.get('rssi')}dBm" if "rssi" in record else "RSSI ?"
         line = f"[{transport or '?'}] {identity}  {rssi}"
         if "distance_m" in record:
@@ -1025,19 +1064,21 @@ def render_state(path):
     return "\n".join(lines)
 
 
-def list_state(path):
+def list_state(path, censor=False):
     records = load_state(path).get("records", [])
     if not records:
         return ["No Remote ID devices"]
-    return [f"{index + 1}. {short_identity(record)[:23]}{' [lost]' if record.get('is_lost') else ''}" for index, record in enumerate(records[:20])]
+    return [f"{index + 1}. {short_identity(record, censor)[:23]}{' [lost]' if record.get('is_lost') else ''}" for index, record in enumerate(records[:20])]
 
 
-def detail_state(path, index):
+def detail_state(path, index, censor=False):
     records = load_state(path).get("records", [])
     if index < 0 or index >= len(records):
         return "No device selected"
     record = records[index]
-    lines = [short_identity(record), f"MAC: {record.get('mac', '?')}",
+    identity = short_identity(record, censor)
+    mac = censor_mac(record.get("mac", "?")) if censor else record.get("mac", "?")
+    lines = [identity, f"MAC: {mac}",
              "Transport: " + ", ".join(record.get("transports", [])),
              f"RSSI: {record.get('rssi', '?')} dBm  Ch: {record.get('channel', '?')}",
              f"Type: {UA_TYPES.get(record.get('ua_type'), 'Unknown')}",
@@ -1049,11 +1090,13 @@ def detail_state(path, index):
         if "distance_m" in record:
             lines.append(f"Range: {record['distance_m']:.0f} m @ {record['bearing_deg']:.0f} deg")
     if record.get("operator_id"):
-        lines.append("Operator: " + record["operator_id"])
+        operator_id = censor_identifier(record["operator_id"]) if censor else record["operator_id"]
+        lines.append("Operator: " + operator_id)
     if record.get("has_operator_location"):
         lines.append(f"Operator pos: {record['operator_latitude_e7'] / 1e7:.7f}, {record['operator_longitude_e7'] / 1e7:.7f}")
     if record.get("description"):
-        lines.append("Note: " + record["description"])
+        description = censor_name(record["description"]) if censor else record["description"]
+        lines.append("Note: " + description)
     return "\n".join(lines)
 
 
@@ -1070,19 +1113,29 @@ def main(argv=None):
     parser.add_argument("--list-state")
     parser.add_argument("--detail-state")
     parser.add_argument("--index", type=int, default=0)
+    parser.add_argument("--settings", default="/tmp/remote-id-radar-settings.json")
+    parser.add_argument("--censor", action="store_true")
+    parser.add_argument("--get-censor", action="store_true")
+    parser.add_argument("--set-censor", choices=("on", "off"))
     args = parser.parse_args(argv)
     if args.run:
         return run_monitor(args)
     if args.render_state:
-        print(render_state(args.render_state))
+        print(render_state(args.render_state, args.censor))
         return 0
     if args.list_state:
-        print("\n".join(list_state(args.list_state)))
+        print("\n".join(list_state(args.list_state, args.censor)))
         return 0
     if args.detail_state:
-        print(detail_state(args.detail_state, args.index))
+        print(detail_state(args.detail_state, args.index, args.censor))
         return 0
-    parser.error("choose --run, --render-state, --list-state, or --detail-state")
+    if args.get_censor:
+        print("1" if load_censor_setting(args.settings) else "0")
+        return 0
+    if args.set_censor:
+        save_censor_setting(args.settings, args.set_censor == "on")
+        return 0
+    parser.error("choose a run, state-rendering, or settings action")
 
 
 if __name__ == "__main__":

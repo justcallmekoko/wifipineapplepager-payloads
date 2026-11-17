@@ -12,6 +12,7 @@ Remote ID Radar is a passive ASTM/OpenDroneID monitor for the Hak5 WiFi Pineappl
 - Merges Wi-Fi and Bluetooth observations that advertise the same UAS ID.
 - Saves rate-limited JSONL events, CSV telemetry, and periodically checkpointed GPX waypoints under `/mmc/root/loot/remote_id_monitor` when MMC storage is available, otherwise `/root/loot/remote_id_monitor`.
 - Tunes the monitor interface to channel 6 for Wi-Fi Remote ID and restores its prior channel during cleanup without changing persistent PineAP configuration.
+- Provides an optional persistent censor mode that follows Marauder's masking rules for on-screen UAS IDs, operator IDs, and MAC-address fallbacks.
 
 ## Usage
 
@@ -23,7 +24,9 @@ or:
 
 `/mmc/root/payloads/user/reconnaissance/remote_id_monitor`
 
-Launch **Remote ID Radar**, dismiss the title screen, and choose **Start live monitor**. Press **A** to stop. Recent detections remain available from the payload menu until the Pager reboots or another session replaces the state file.
+Launch **Remote ID Radar**, dismiss the title screen, and choose **Start live monitor**. Press **A** to stop. Use **Censor mode: ON/OFF** in the payload menu to toggle identifier masking; the choice persists across payload restarts. Recent detections remain available from the payload menu until the Pager reboots or another session replaces the state file.
+
+Censor mode affects the Pager UI only. JSONL, CSV, and GPX loot retains complete identifiers for authorized analysis.
 
 ## Requirements
 
