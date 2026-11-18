@@ -2,10 +2,11 @@
 # Title: C5 Wardriver Pager Node
 # Author: JustCallMeKoko
 # Description: Adds Wi-Fi 6 GHz observations to a C5 Wardriver Core over ESP-NOW
-# Version: 0.3.0
+# Version: 0.3.1
 # Category: Reconnaissance
 
 LAUNCH_DIR="$(cd "$(dirname "$0")" && pwd)"
+export PATH="/usr/sbin:/usr/bin:/sbin:/bin:/mmc/usr/bin:$PATH"
 if [ -f "$LAUNCH_DIR/c5_pager_node.py" ]; then
   DIR="$LAUNCH_DIR"
 elif [ -f /root/payloads/user/reconnaissance/c5_wardriver_node/c5_pager_node.py ]; then
@@ -28,15 +29,60 @@ cleanup() {
   fi
 }
 trap cleanup EXIT INT TERM
-command -v python3 >/dev/null 2>&1 || { ERROR_DIALOG "Python 3 is required for this payload."; exit 1; }
-# Pager packages installed on MMC are not included in the stock interpreter path.
-PYTHON_MMCLIB="/mmc/usr/lib/python$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
-if [ -d "$PYTHON_MMCLIB" ]; then
-  export PYTHONPATH="$PYTHON_MMCLIB:$PYTHON_MMCLIB/lib-dynload${PYTHONPATH:+:$PYTHONPATH}"
-fi
-python3 -c 'import argparse,json,select,socket,struct,subprocess' >/dev/null 2>&1 || {
-  ERROR_DIALOG "Python 3 standard-library modules are unavailable. Install python3-light."; exit 1;
+configure_python() {
+  PYTHON_BIN=""
+  for candidate in /usr/bin/python3 /mmc/usr/bin/python3; do
+    [ -x "$candidate" ] || continue
+    if [ "$candidate" = /mmc/usr/bin/python3 ]; then
+      export LD_LIBRARY_PATH="/mmc/usr/lib:/mmc/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    fi
+    PYTHON_VERSION=$("$candidate" -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null) || continue
+    PYTHON_BIN="$candidate"
+    break
+  done
+  [ -n "$PYTHON_BIN" ] || return 1
+  PYTHON_MMCLIB="/mmc/usr/lib/python$PYTHON_VERSION"
+  if [ -d "$PYTHON_MMCLIB" ]; then
+    export PYTHONPATH="$PYTHON_MMCLIB:$PYTHON_MMCLIB/lib-dynload${PYTHONPATH:+:$PYTHONPATH}"
+  fi
 }
+install_python() {
+  if ! CONFIRMATION_DIALOG "C5 Wardriver Node needs Python 3.\n\nInstall python3-light to MMC now?\n\nRequires internet and persistent storage changes."; then
+    return 2
+  fi
+  INSTALL_LOG=/tmp/c5-pager-node-python-install.$$.log
+  LOG cyan "Updating package lists..."
+  opkg update >"$INSTALL_LOG" 2>&1 || { ERROR_DIALOG "Package list update failed. Check internet access. See $INSTALL_LOG"; return 1; }
+  LOG cyan "Installing or repairing python3-light on MMC..."
+  opkg -d mmc --force-reinstall install python3-light >>"$INSTALL_LOG" 2>&1 || { ERROR_DIALOG "Python installation failed. See $INSTALL_LOG"; return 1; }
+  configure_python || { ERROR_DIALOG "Python installed but is not executable. See $INSTALL_LOG"; return 1; }
+}
+if ! configure_python; then
+  install_python
+  install_rc=$?
+  [ "$install_rc" -eq 2 ] && exit 0
+  [ "$install_rc" -eq 0 ] || exit 1
+fi
+STARTUP_LOG=/tmp/c5-pager-node-startup.$$.log
+if ! PYTHONDONTWRITEBYTECODE=1 "$PYTHON_BIN" -B "$DIR/c5_pager_node.py" --self-check >"$STARTUP_LOG" 2>&1; then
+  if grep -Eq "ImportError|ModuleNotFoundError|No module named|cannot open shared object file" "$STARTUP_LOG"; then
+    install_python
+    install_rc=$?
+    [ "$install_rc" -eq 2 ] && exit 0
+    [ "$install_rc" -eq 0 ] || exit 1
+    if ! PYTHONDONTWRITEBYTECODE=1 "$PYTHON_BIN" -B "$DIR/c5_pager_node.py" --self-check >"$STARTUP_LOG" 2>&1; then
+      ERROR_DIALOG "Python is still incomplete. See $STARTUP_LOG"
+      exit 1
+    fi
+  elif grep -Eq "SyntaxError|IndentationError" "$STARTUP_LOG"; then
+    ERROR_DIALOG "C5 node worker is damaged. Reinstall the payload. See $STARTUP_LOG"
+    exit 1
+  else
+    ERROR_DIALOG "C5 node could not start. See $STARTUP_LOG"
+    exit 1
+  fi
+fi
+rm -f "$STARTUP_LOG"
 iw dev "$IFACE" info >/dev/null 2>&1 || { ERROR_DIALOG "wlan1mon is unavailable."; exit 1; }
 valid_mac() { echo "$1" | grep -Eq '^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$'; }
 prepare_radio() {
@@ -56,7 +102,7 @@ save_core() {
 }
 CORE_MAC=$(PAYLOAD_GET_CONFIG c5_wardriver_node core_mac 2>/dev/null || true)
 if ! valid_mac "$CORE_MAC" && [ -s "$CORE_CONFIG" ]; then
-  CORE_MAC=$(python3 -c 'import sys; print(open(sys.argv[1]).read().strip())' "$CORE_CONFIG")
+  CORE_MAC=$("$PYTHON_BIN" -c 'import sys; print(open(sys.argv[1]).read().strip())' "$CORE_CONFIG")
 fi
 valid_mac "$CORE_MAC" || CORE_MAC=""
 PROMPT_IMAGE "$DIR/splash.png"
@@ -70,7 +116,7 @@ case "$action" in
     prepare_radio
     LOG yellow "Searching for C5 Wardriver Cores..."
     CANDIDATES=()
-    while IFS= read -r mac; do valid_mac "$mac" && CANDIDATES+=("$mac"); done < <(python3 "$DIR/c5_pager_node.py" --iface "$IFACE" --discover-seconds 6)
+    while IFS= read -r mac; do valid_mac "$mac" && CANDIDATES+=("$mac"); done < <("$PYTHON_BIN" "$DIR/c5_pager_node.py" --iface "$IFACE" --discover-seconds 6)
     [ "${#CANDIDATES[@]}" -gt 0 ] || { ERROR_DIALOG "No C5 Wardriver Core replied. Confirm Core mode and retry."; exit 1; }
     if [ "${#CANDIDATES[@]}" -eq 1 ]; then
       CORE_MAC="${CANDIDATES[0]}"
@@ -95,7 +141,7 @@ prepare_radio
 rm -f "$STATS"; : >"$LOGFILE"
 start_worker() {
   printf "[%s] starting node worker\n" "$(date -Iseconds 2>/dev/null || date)" >>"$LOGFILE"
-  python3 "$DIR/c5_pager_node.py" --iface "$IFACE" --core "$CORE_MAC" --stats "$STATS" >>"$LOGFILE" 2>&1 & PID=$!
+  "$PYTHON_BIN" "$DIR/c5_pager_node.py" --iface "$IFACE" --core "$CORE_MAC" --stats "$STATS" >>"$LOGFILE" 2>&1 & PID=$!
 }
 start_worker
 LOG cyan "C5 WARDRIVER 6 GHz NODE"
@@ -106,7 +152,7 @@ while true; do
     sleep 2
     start_worker
   fi
-  status=$(python3 "$DIR/c5_pager_node.py" --render-stats "$STATS")
+  status=$("$PYTHON_BIN" "$DIR/c5_pager_node.py" --render-stats "$STATS")
   if echo "$status" | grep -q "CORE: LINKED"; then
     LOG green "$status"
   else
@@ -120,7 +166,7 @@ while true; do
 done
 kill "$PID" 2>/dev/null; wait "$PID" 2>/dev/null; PID=""
 if [ -s "$STATS" ]; then
-  summary=$(python3 -c 'import json,sys; s=json.load(open(sys.argv[1])); print("Core: %s\n6 GHz seen: %d\nRecords sent: %d\nCore ACKs: %d"%(s.get("core") or "not found",s["seen"],s["sent"],s.get("acked",0)))' "$STATS")
+  summary=$("$PYTHON_BIN" -c 'import json,sys; s=json.load(open(sys.argv[1])); print("Core: %s\n6 GHz seen: %d\nRecords sent: %d\nCore ACKs: %d"%(s.get("core") or "not found",s["seen"],s["sent"],s.get("acked",0)))' "$STATS")
   PROMPT "$summary"
 else
   ERROR_DIALOG "Node stopped before producing status. See $LOGFILE"

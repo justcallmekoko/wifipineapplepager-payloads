@@ -137,8 +137,9 @@ def format_status(stats):
         "A: STOP",
     ))
 
-def main():
-    ap=argparse.ArgumentParser(); ap.add_argument("--iface",default="wlan1mon"); ap.add_argument("--core"); ap.add_argument("--stats",default="/tmp/c5-pager-node.json"); ap.add_argument("--render-stats"); ap.add_argument("--discover-seconds",type=float); a=ap.parse_args()
+def main(argv=None):
+    ap=argparse.ArgumentParser(); ap.add_argument("--self-check",action="store_true"); ap.add_argument("--iface",default="wlan1mon"); ap.add_argument("--core"); ap.add_argument("--stats",default="/tmp/c5-pager-node.json"); ap.add_argument("--render-stats"); ap.add_argument("--discover-seconds",type=float); a=ap.parse_args(argv)
+    if a.self_check: return 0
     if a.render_stats:
         try:
             with open(a.render_stats) as f: print(format_status(json.load(f)))
