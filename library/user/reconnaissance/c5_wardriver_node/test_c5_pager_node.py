@@ -8,7 +8,17 @@ class PayloadTests(unittest.TestCase):
     def test_payload_exposes_mmc_python_packages(self):
         payload=PATH.with_name("payload.sh").read_text()
         self.assertIn("PYTHON_MMCLIB",payload)
-        self.assertLess(payload.index("export PYTHONPATH"), payload.index('python3 "$DIR/c5_pager_node.py"'))
+        self.assertIn("CONFIRMATION_DIALOG",payload)
+        self.assertIn("opkg -d mmc --force-reinstall install python3-light",payload)
+        self.assertIn("Requires internet and persistent storage changes",payload)
+        self.assertIn('/mmc/usr/bin',payload)
+        self.assertIn('LD_LIBRARY_PATH',payload)
+        self.assertIn('return 2',payload)
+        self.assertIn('--self-check',payload)
+        self.assertLess(payload.index("export PYTHONPATH"), payload.index('"$DIR/c5_pager_node.py" --self-check'))
+        self.assertNotIn("$(python3 ",payload)
+        self.assertNotIn("< <(python3 ",payload)
+        self.assertNotIn("\n  python3 ",payload)
     def test_payload_supports_explicit_on_device_pairing(self):
         payload=PATH.with_name("payload.sh").read_text()
         for expected in ("LIST_PICKER","MAC_PICKER","PAYLOAD_GET_CONFIG","PAYLOAD_SET_CONFIG","--discover-seconds 6","Pair with $CORE_MAC?"):
@@ -24,6 +34,9 @@ class PayloadTests(unittest.TestCase):
         data=PATH.with_name("splash.png").read_bytes()
         self.assertEqual(data[:8],b"\x89PNG\r\n\x1a\n")
         self.assertEqual(struct.unpack(">II",data[16:24]),(480,222))
+
+    def test_worker_self_check(self):
+        self.assertEqual(node.main(["--self-check"]), 0)
 
 class ProtocolTests(unittest.TestCase):
     def test_text_message_matches_c5_struct(self):

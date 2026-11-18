@@ -108,11 +108,19 @@ class StartupCompatibilityTests(unittest.TestCase):
 
     def test_launcher_uses_runtime_check_not_py_compile(self):
         launcher = Path(__file__).with_name("payload.sh").read_text()
-        self.assertIn('python3 -B "$WORKER" --self-check', launcher)
+        self.assertIn('"$PYTHON_BIN" -B "$WORKER" --self-check', launcher)
         self.assertIn("ImportError|ModuleNotFoundError|No module named", launcher)
         self.assertIn("remote-id-radar-startup.$$.log", launcher)
-        self.assertIn("python3-light (or full python3)", launcher)
+        self.assertIn("CONFIRMATION_DIALOG", launcher)
+        self.assertIn("opkg -d mmc --force-reinstall install python3-light", launcher)
+        self.assertIn("Requires internet and persistent storage changes", launcher)
+        self.assertIn("/mmc/usr/bin", launcher)
+        self.assertIn("LD_LIBRARY_PATH", launcher)
+        self.assertIn('return 2', launcher)
         self.assertNotIn("python3 -m py_compile", launcher)
+        self.assertNotIn("$(python3 ", launcher)
+        self.assertNotIn("< <(python3 ", launcher)
+        self.assertNotIn("\n  python3 ", launcher)
 
 
 class DecoderTests(unittest.TestCase):
